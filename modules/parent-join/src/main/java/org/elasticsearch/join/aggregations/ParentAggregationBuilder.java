@@ -50,22 +50,22 @@ public class ParentAggregationBuilder
 
     public static final String NAME = "parent";
 
-    private final String parentType;
+    private final String childType;
     private Query parentFilter;
     private Query childFilter;
 
     /**
      * @param name
      *            the name of this aggregation
-     * @param parentType
+     * @param childType
      *            the type of children documents
      */
-    public ParentAggregationBuilder(String name, String parentType) {
+    public ParentAggregationBuilder(String name, String childType) {
         super(name, ValuesSourceType.BYTES, ValueType.STRING);
-        if (parentType == null) {
-            throw new IllegalArgumentException("[parentType] must not be null: [" + name + "]");
+        if (childType == null) {
+            throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
-        this.parentType = parentType;
+        this.childType = childType;
     }
 
     /**
@@ -73,12 +73,12 @@ public class ParentAggregationBuilder
      */
     public ParentAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.BYTES, ValueType.STRING);
-        parentType = in.readString();
+        childType = in.readString();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeString(parentType);
+        out.writeString(childType);
     }
 
     @Override
@@ -103,10 +103,10 @@ public class ParentAggregationBuilder
 
     private void joinFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
         ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
-        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(parentType, true);
+        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
         if (parentIdFieldMapper != null) {
             parentFilter = parentIdFieldMapper.getParentFilter();
-            childFilter = parentIdFieldMapper.getChildFilter(parentType);
+            childFilter = parentIdFieldMapper.getChildFilter(childType);
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
             final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
             config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
@@ -116,7 +116,7 @@ public class ParentAggregationBuilder
     }
 
     private void parentFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(parentType);
+        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
         if (childDocMapper != null) {
             ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
             if (!parentFieldMapper.active()) {
@@ -141,7 +141,7 @@ public class ParentAggregationBuilder
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(ParentToChildrenAggregator.TYPE_FIELD.getPreferredName(), parentType);
+        builder.field(ParentToChildrenAggregator.TYPE_FIELD.getPreferredName(), childType);
         return builder;
     }
 
@@ -175,13 +175,13 @@ public class ParentAggregationBuilder
 
     @Override
     protected int innerHashCode() {
-        return Objects.hash(parentType);
+        return Objects.hash(childType);
     }
 
     @Override
     protected boolean innerEquals(Object obj) {
         ParentAggregationBuilder other = (ParentAggregationBuilder) obj;
-        return Objects.equals(parentType, other.parentType);
+        return Objects.equals(childType, other.childType);
     }
 
     @Override

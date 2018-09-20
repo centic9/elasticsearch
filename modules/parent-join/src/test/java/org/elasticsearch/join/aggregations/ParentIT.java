@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,20 +33,18 @@ public class ParentIT extends AbstractParentChildIT {
             .setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
-                parent("to_article", "article")
+                parent("to_article", "comment")
                     .subAggregation(
                         terms("category").field("category").size(10000)));
         SearchResponse searchResponse = searchRequest.get();
         assertSearchResponse(searchResponse);
 
-        final Set<String> articles = categoryToControl.values().stream().flatMap(
-            (Function<Control, Stream<String>>) control -> control.articleIds.stream())
-            .collect(Collectors.toSet());
-        //final Map<String, Integer> commenterToArticle
+        final long comments = categoryToControl.values().stream().mapToLong(
+            value -> value.commentIds.size()).sum();
 
         Parent parentAgg = searchResponse.getAggregations().get("to_article");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
-            parentAgg.getDocCount(), equalTo((long)articles.size()));
+            parentAgg.getDocCount(), equalTo(comments));
         Terms categoryTerms = parentAgg.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(),
             equalTo(categoryToControl.keySet().size()));
@@ -53,7 +52,7 @@ public class ParentIT extends AbstractParentChildIT {
             final Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(category);
             assertThat(categoryBucket.getKeyAsString(), equalTo(category));
             assertThat(categoryBucket.getDocCount(),
-                equalTo((long)categoryToControl.get(category).articleIds.size()));
+                equalTo((long)categoryToControl.get(category).commentIds.size()));
         }
     }
 
@@ -62,7 +61,7 @@ public class ParentIT extends AbstractParentChildIT {
             .setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
-                terms("commenter").field("commenter").size(10000).subAggregation(parent("to_article", "article")
+                terms("commenter").field("commenter").size(10000).subAggregation(parent("to_article", "comment")
                     .subAggregation(
                         terms("category").field("category").size(10000).subAggregation(
                             topHits("top_category")

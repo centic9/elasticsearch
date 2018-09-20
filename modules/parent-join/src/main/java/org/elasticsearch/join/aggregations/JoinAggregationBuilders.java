@@ -30,7 +30,7 @@ public abstract class JoinAggregationBuilders {
     /**
      * Create a new {@link Parent} aggregation with the given name.
      */
-    public static ParentAggregationBuilder parent(String name, String parentType) {
-        return new ParentAggregationBuilder(name, parentType);
+    public static ParentAggregationBuilder parent(String name, String childType) {
+        return new ParentAggregationBuilder(name, childType);
     }
 }
