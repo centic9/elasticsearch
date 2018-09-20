@@ -16,21 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.join.aggregations;
 
-import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
-public class ParsedParent extends ParsedSingleBucketAggregation implements Parent {
+public class ParentTests extends BaseAggregationTestCase<ParentAggregationBuilder> {
 
     @Override
-    public String getType() {
-        return ParentAggregationBuilder.NAME;
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(ParentJoinPlugin.class);
     }
 
-    public static ParsedParent fromXContent(XContentParser parser, final String name) throws IOException {
-        return parseXContent(parser, new ParsedParent(), name);
+    @Override
+    protected ParentAggregationBuilder createTestAggregatorBuilder() {
+        String name = randomAlphaOfLengthBetween(3, 20);
+        String parentType = randomAlphaOfLengthBetween(5, 40);
+        return new ParentAggregationBuilder(name, parentType);
     }
 }
