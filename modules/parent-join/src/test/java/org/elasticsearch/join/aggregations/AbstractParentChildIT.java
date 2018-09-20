@@ -78,7 +78,7 @@ public abstract class AbstractParentChildIT  extends ParentChildTestCase {
                         control.commenterToCommentId.put(commenter, ids = new HashSet<>());
                     }
                     ids.add(idValue);
-                    requests.add(createIndexRequest("test", "comment", idValue, articleId, "commenter", commenter));
+                    requests.add(createIndexRequest("test", "comment", idValue, articleId, "commenter", commenter, "randomized", true));
                 }
             }
         }
