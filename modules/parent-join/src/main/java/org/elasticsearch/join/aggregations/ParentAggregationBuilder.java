@@ -19,9 +19,6 @@
 
 package org.elasticsearch.join.aggregations;
 
-import java.io.IOException;
-import java.util.Objects;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +41,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.Objects;
 
 public class ParentAggregationBuilder
         extends ValuesSourceAggregationBuilder<WithOrdinals, ParentAggregationBuilder> {
@@ -86,7 +86,7 @@ public class ParentAggregationBuilder
                                                                         ValuesSourceConfig<WithOrdinals> config,
                                                                         AggregatorFactory<?> parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
-        return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
+        return new ParentAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -96,7 +96,7 @@ public class ParentAggregationBuilder
         if (context.mapperService().getIndexSettings().isSingleType()) {
             joinFieldResolveConfig(context, config);
         } else {
-            childFieldResolveConfig(context, config);
+            parentFieldResolveConfig(context, config);
         }
         return config;
     }
@@ -115,8 +115,7 @@ public class ParentAggregationBuilder
         }
     }
 
-    private void childFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
-        // TODO: is this necessary, maybe we can remove this completely?
+    private void parentFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
         DocumentMapper childDocMapper = context.mapperService().documentMapper(parentType);
         if (childDocMapper != null) {
             ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
@@ -147,7 +146,7 @@ public class ParentAggregationBuilder
     }
 
     public static ParentAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        String parentType = null;
+        String childType = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -156,7 +155,7 @@ public class ParentAggregationBuilder
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("type".equals(currentFieldName)) {
-                    parentType = parser.text();
+                    childType = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -166,12 +165,12 @@ public class ParentAggregationBuilder
             }
         }
 
-        if (parentType == null) {
+        if (childType == null) {
             throw new ParsingException(parser.getTokenLocation(),
-                    "Missing [parent_type] field for parent aggregation [" + aggregationName + "]");
+                    "Missing [child_type] field for parent aggregation [" + aggregationName + "]");
         }
 
-        return new ParentAggregationBuilder(aggregationName, parentType);
+        return new ParentAggregationBuilder(aggregationName, childType);
     }
 
     @Override

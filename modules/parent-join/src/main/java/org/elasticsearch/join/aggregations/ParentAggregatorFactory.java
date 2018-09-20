@@ -67,7 +67,7 @@ public class ParentAggregatorFactory
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                     throws IOException {
         long maxOrd = valuesSource.globalMaxOrd(context.searcher());
-        return new ChidlrenToParentAggregator(name, factories, context, children, childFilter,
+        return new ChildrenToParentAggregator(name, factories, context, children, childFilter,
             parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
     }
 }

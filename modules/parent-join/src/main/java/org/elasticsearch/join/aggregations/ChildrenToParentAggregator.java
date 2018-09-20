@@ -49,7 +49,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
-public class ChidlrenToParentAggregator extends BucketsAggregator implements SingleBucketAggregator {
+public class ChildrenToParentAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField TYPE_FIELD = new ParseField("type");
 
@@ -71,7 +71,7 @@ public class ChidlrenToParentAggregator extends BucketsAggregator implements Sin
     private final LongObjectPagedHashMap<long[]> childrenOrdToOtherBuckets;
     private boolean multipleBucketsPerChildrenOrd = false;
 
-    public ChidlrenToParentAggregator(String name, AggregatorFactories factories,
+    public ChildrenToParentAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
             long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
@@ -105,12 +105,12 @@ public class ChidlrenToParentAggregator extends BucketsAggregator implements Sin
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
-        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentFilter.scorerSupplier(ctx));
+        final Bits childDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), childFilter.scorerSupplier(ctx));
         return new LeafBucketCollector() {
 
             @Override
             public void collect(int docId, long bucket) throws IOException {
-                if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
+                if (childDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
                     long globalOrdinal = globalOrdinals.nextOrd();
                     assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
                     if (globalOrdinal != -1) {
@@ -137,21 +137,21 @@ public class ChidlrenToParentAggregator extends BucketsAggregator implements Sin
     protected void doPostCollection() throws IOException {
         IndexReader indexReader = context().searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
-            Scorer childDocsScorer = childFilter.scorer(ctx);
+            Scorer childDocsScorer = parentFilter.scorer(ctx);
             if (childDocsScorer == null) {
                 continue;
             }
-            DocIdSetIterator childDocsIter = childDocsScorer.iterator();
+            DocIdSetIterator parentDocsIter = childDocsScorer.iterator();
 
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
 
             final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
             // Set the scorer, since we now replay only the child docIds
-            sub.setScorer(new ConstantScoreScorer(null, 1f, childDocsIter));
+            sub.setScorer(new ConstantScoreScorer(null, 1f, parentDocsIter));
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
-            for (int docId = childDocsIter
-                    .nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = childDocsIter
+            for (int docId = parentDocsIter
+                    .nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = parentDocsIter
                             .nextDoc()) {
                 if (liveDocs != null && liveDocs.get(docId) == false) {
                     continue;
