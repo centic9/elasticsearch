@@ -527,7 +527,8 @@ public class ChildrenIT extends ParentChildTestCase {
         assertSearchResponse(searchResponse);
 
         Terms categoryTerms = searchResponse.getAggregations().get("commenter");
-        assertThat(categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
+        assertThat("Having: " + searchResponse,
+            categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
         for (Map.Entry<String, Control> entry1 : categoryToControl.entrySet()) {
             Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(entry1.getKey());
             assertThat(categoryBucket.getKeyAsString(), equalTo(entry1.getKey()));
