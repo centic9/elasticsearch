@@ -9,6 +9,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -25,6 +27,36 @@ import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 
 public class ParentIT extends AbstractParentChildIT {
 
+    public void testSimpleParentAgg() throws Exception {
+        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
+            .setSize(10000)
+            .setQuery(matchQuery("randomized", true))
+            .addAggregation(
+                parent("to_article", "article")
+                    .subAggregation(
+                        terms("category").field("category").size(10000)));
+        SearchResponse searchResponse = searchRequest.get();
+        assertSearchResponse(searchResponse);
+
+        final Set<String> articles = categoryToControl.values().stream().flatMap(
+            (Function<Control, Stream<String>>) control -> control.articleIds.stream())
+            .collect(Collectors.toSet());
+        //final Map<String, Integer> commenterToArticle
+
+        Parent parentAgg = searchResponse.getAggregations().get("to_article");
+        assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
+            parentAgg.getDocCount(), equalTo((long)articles.size()));
+        Terms categoryTerms = parentAgg.getAggregations().get("category");
+        assertThat(categoryTerms.getBuckets().size(),
+            equalTo(categoryToControl.keySet().size()));
+        for (String category : categoryToControl.keySet()) {
+            final Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(category);
+            assertThat(categoryBucket.getKeyAsString(), equalTo(category));
+            assertThat(categoryBucket.getDocCount(),
+                equalTo((long)categoryToControl.get(category).articleIds.size()));
+        }
+    }
+
     public void testParentAggs() throws Exception {
         final SearchRequestBuilder searchRequest = client().prepareSearch("test")
             .setSize(10000)
@@ -32,8 +64,8 @@ public class ParentIT extends AbstractParentChildIT {
             .addAggregation(
                 terms("commenter").field("commenter").size(10000).subAggregation(parent("to_article", "article")
                     .subAggregation(
-                        terms("category").field("cateogry").size(10000).subAggregation(
-                            topHits("top_commenters")
+                        terms("category").field("category").size(10000).subAggregation(
+                            topHits("top_category")
                         ))
                 )
             );
@@ -42,7 +74,13 @@ public class ParentIT extends AbstractParentChildIT {
 
         final Set<String> commenters = categoryToControl.values().stream().flatMap(
             (Function<Control, Stream<String>>) control -> control.commenterToCommentId.keySet().stream()).collect(Collectors.toSet());
-        //final Map<String, Integer> commenterToArticle
+        final Map<String, Set<String>> commenterToComments = new HashMap<>();
+        for (Control control : categoryToControl.values()) {
+            for (Map.Entry<String, Set<String>> entry : control.commenterToCommentId.entrySet()) {
+                final Set<String> comments = commenterToComments.computeIfAbsent(entry.getKey(), s -> new HashSet<>());
+                comments.addAll(entry.getValue());
+            }
+        }
 
         Terms categoryTerms = searchResponse.getAggregations().get("commenter");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
@@ -50,11 +88,11 @@ public class ParentIT extends AbstractParentChildIT {
         for (String commenter : commenters) {
             Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(commenter);
             assertThat(categoryBucket.getKeyAsString(), equalTo(commenter));
-            /*assertThat(categoryBucket.getDocCount(), equalTo((long) entry1.getValue().articleIds.size()));
+            assertThat(categoryBucket.getDocCount(), equalTo((long) commenterToComments.get(commenter).size()));
 
-            Children childrenBucket = categoryBucket.getAggregations().get("to_article");
+            Parent childrenBucket = categoryBucket.getAggregations().get("to_article");
             assertThat(childrenBucket.getName(), equalTo("to_article"));
-            assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
+            /*assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
             assertThat(((InternalAggregation)childrenBucket).getProperty("_count"),
                 equalTo((long) entry1.getValue().commentIds.size()));
 
