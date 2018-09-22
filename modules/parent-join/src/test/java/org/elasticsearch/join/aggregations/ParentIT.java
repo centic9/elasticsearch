@@ -1,31 +1,26 @@
 package org.elasticsearch.join.aggregations;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.join.aggregations.JoinAggregationBuilders.parent;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.ToIntFunction;
-import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.join.aggregations.JoinAggregationBuilders.parent;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
 
+@Seed("[413C3738BB78F04:D058AD289F565736]")
 public class ParentIT extends AbstractParentChildIT {
 
     public void testSimpleParentAgg() throws Exception {
@@ -39,12 +34,14 @@ public class ParentIT extends AbstractParentChildIT {
         SearchResponse searchResponse = searchRequest.get();
         assertSearchResponse(searchResponse);
 
-        final long comments = categoryToControl.values().stream().mapToLong(
-            value -> value.commentIds.size()).sum();
+        /*final long comments = categoryToControl.values().stream().mapToLong(
+            value -> value.commentIds.size()).sum();*/
+        final long articles = categoryToControl.values().stream().mapToLong(
+            value -> value.articleIds.size()).sum();
 
         Parent parentAgg = searchResponse.getAggregations().get("to_article");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
-            parentAgg.getDocCount(), equalTo(comments));
+            parentAgg.getDocCount(), equalTo(articles));
         Terms categoryTerms = parentAgg.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(),
             equalTo(categoryToControl.keySet().size()));

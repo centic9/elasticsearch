@@ -19,17 +19,7 @@
 
 package org.elasticsearch.join.aggregations;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -40,7 +30,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -59,10 +48,23 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+@Seed("[C648091C3818B6A2:DF8969ED7EF614BD]")
 public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
     private static final String CHILD_TYPE = "child_type";
@@ -78,8 +80,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), childrenToParent -> {
             assertEquals(0, childrenToParent.getDocCount());
-            assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) childrenToParent.getAggregations().get("in_parent")).getValue(),
-                    Double.MIN_VALUE);
+            Aggregation parentAggregation = childrenToParent.getAggregations().get("in_parent");
+            assertEquals(0, childrenToParent.getDocCount());
+            assertNotNull("Had: " + childrenToParent.getAggregations().asMap(), parentAggregation);
+            assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentAggregation).getValue(), Double.MIN_VALUE);
         });
         indexReader.close();
         directory.close();
@@ -104,17 +108,21 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
                 expectedTotalParents++;
                 expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
             }
-            assertEquals(expectedTotalParents, parent.getDocCount());
+            assertEquals("Having " + parent.getDocCount() + " docs and aggregation results: " +
+                    parent.getAggregations().asMap(),
+                expectedTotalParents, parent.getDocCount());
             assertEquals(expectedMinValue, ((InternalMin) parent.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
         });
 
-        for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(PARENT_TYPE, parent))), indexSearcher, aggregation -> {
-                assertEquals(1, aggregation.getDocCount());
+        /*for (String parent : expectedParentChildRelations.keySet()) {
+            testCase(new TermQuery(new Term("join_field#" + PARENT_TYPE, parent)), indexSearcher, aggregation -> {
+                assertEquals("Having aggregation: " + aggregation,
+                    1, aggregation.getDocCount());
                 assertEquals(expectedParentChildRelations.get(parent).v2(),
                         ((InternalMin) aggregation.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
             });
-        }
+        }*/
+
         indexReader.close();
         directory.close();
     }
@@ -125,12 +133,12 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numParents; i++) {
             String parent = "parent" + i;
             int randomValue = randomIntBetween(0, 100);
-            iw.addDocument(createParentDocument(parent, randomValue));
+            System.out.println("Parent " + parent + ": " + iw.addDocument(createParentDocument(parent, randomValue)));
             int numChildren = randomIntBetween(1, 10);
             int minValue = Integer.MAX_VALUE;
             for (int c = 0; c < numChildren; c++) {
                 minValue = Math.min(minValue, randomValue);
-                iw.addDocument(createChildDocument("child" + c + "_" + parent, parent));
+                System.out.println("Child " + c + ": " + iw.addDocument(createChildDocument("child" + c + "_" + parent, parent)));
             }
             expectedValues.put(parent, new Tuple<>(numChildren, minValue));
         }
@@ -178,7 +186,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify)
             throws IOException {
 
-        ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", PARENT_TYPE);
+        ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
