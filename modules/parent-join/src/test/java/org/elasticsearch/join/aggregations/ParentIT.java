@@ -88,15 +88,8 @@ public class ParentIT extends AbstractParentChildIT {
         SearchResponse searchResponse = searchRequest.get();
         assertSearchResponse(searchResponse);
 
-        final Set<String> commenters = categoryToControl.values().stream().flatMap(
-            (Function<Control, Stream<String>>) control -> control.commenterToCommentId.keySet().stream()).collect(Collectors.toSet());
-        final Map<String, Set<String>> commenterToComments = new HashMap<>();
-        for (Control control : categoryToControl.values()) {
-            for (Map.Entry<String, Set<String>> entry : control.commenterToCommentId.entrySet()) {
-                final Set<String> comments = commenterToComments.computeIfAbsent(entry.getKey(), s -> new HashSet<>());
-                comments.addAll(entry.getValue());
-            }
-        }
+        final Set<String> commenters = getCommenters();
+        final Map<String, Set<String>> commenterToComments = getCommenterToComments();
 
         Terms categoryTerms = searchResponse.getAggregations().get("commenter");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
@@ -128,6 +121,23 @@ public class ParentIT extends AbstractParentChildIT {
         }
     }
 
+    private Set<String> getCommenters() {
+        return categoryToControl.values().stream().flatMap(
+                (Function<Control, Stream<String>>) control -> control.commenterToCommentId.keySet().stream()).
+                collect(Collectors.toSet());
+    }
+
+    private Map<String, Set<String>> getCommenterToComments() {
+        final Map<String, Set<String>> commenterToComments = new HashMap<>();
+        for (Control control : categoryToControl.values()) {
+            for (Map.Entry<String, Set<String>> entry : control.commenterToCommentId.entrySet()) {
+                final Set<String> comments = commenterToComments.computeIfAbsent(entry.getKey(), s -> new HashSet<>());
+                comments.addAll(entry.getValue());
+            }
+        }
+        return commenterToComments;
+    }
+
 //    public void testNonExistingParentType() throws Exception {
 //        SearchResponse searchResponse = client().prepareSearch("test")
 //            .addAggregation(
@@ -139,4 +149,43 @@ public class ParentIT extends AbstractParentChildIT {
 //        assertThat(parent.getName(), equalTo("non-existing"));
 //        assertThat(parent.getDocCount(), equalTo(0L));
 //    }
+
+
+    public void testTermsParentAggTerms() throws Exception {
+        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
+            .setSize(10000)
+            .setQuery(matchQuery("randomized", true))
+            .addAggregation(
+                terms("to_commenter").field("commenter").size(10000).subAggregation(
+                    parent("to_article", "comment")
+                    .subAggregation(
+                        terms("category").field("category").size(10000))));
+        SearchResponse searchResponse = searchRequest.get();
+        assertSearchResponse(searchResponse);
+
+        final Set<String> commenters = getCommenters();
+        final Map<String, Set<String>> commenterToComments = getCommenterToComments();
+
+        Terms commentersAgg = searchResponse.getAggregations().get("to_commenter");
+        assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
+            commentersAgg.getBuckets().size(), equalTo(commenters.size()));
+        for (Terms.Bucket commenterBucket : commentersAgg.getBuckets()) {
+            Set<String> comments = commenterToComments.get(commenterBucket.getKeyAsString());
+            assertNotNull(comments);
+            assertThat("Failed for commenter " + commenterBucket.getKeyAsString(),
+                commenterBucket.getDocCount(), equalTo((long)comments.size()));
+
+            Parent articleAgg = commenterBucket.getAggregations().get("to_article");
+            assertThat(articleAgg.getName(), equalTo("to_article"));
+            // find all articles for the comments for the current commenter
+            Set<String> articles = articleToControl.values().stream().flatMap(
+                (Function<ParentControl, Stream<String>>) parentControl -> parentControl.commentIds.stream().
+                    filter(comments::contains)
+            ).collect(Collectors.toSet());
+
+            assertThat(articleAgg.getDocCount(), equalTo((long)articles.size()));
+
+            // TODO: add more verification
+        }
+    }
 }

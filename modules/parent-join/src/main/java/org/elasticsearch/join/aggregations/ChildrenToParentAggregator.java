@@ -19,6 +19,7 @@
 package org.elasticsearch.join.aggregations;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +36,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -61,6 +63,14 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
     // then we store multiple values into one slot
     private final LongArray childrenOrdToBuckets;
 
+    // Only pay the extra storage price if the a parentOrd has multiple buckets
+    // Most of the times a parent doesn't have multiple buckets, since there is
+    // only one document per parent ord,
+    // only in the case of terms agg if a parent doc has multiple terms per
+    // field this is needed:
+    private final LongObjectPagedHashMap<long[]> childrenOrdToOtherBuckets;
+    private boolean multipleBucketsPerChildrenOrd = false;
+
     public ChildrenToParentAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
@@ -72,6 +82,7 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
         this.parentFilter = context.searcher().createNormalizedWeight(parentFilter, false);
         this.childrenOrdToBuckets = context.bigArrays().newLongArray(maxOrd, false);
         this.childrenOrdToBuckets.fill(0, maxOrd, -1);
+        this.childrenOrdToOtherBuckets = new LongObjectPagedHashMap<>(context.bigArrays());
         this.valuesSource = valuesSource;
     }
 
@@ -105,6 +116,16 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
                     if (globalOrdinal != -1) {
                         if (childrenOrdToBuckets.get(globalOrdinal) == -1) {
                             childrenOrdToBuckets.set(globalOrdinal, bucket);
+                        } else {
+                            long[] bucketOrds = childrenOrdToOtherBuckets.get(globalOrdinal);
+                            if (bucketOrds != null) {
+                                bucketOrds = Arrays.copyOf(bucketOrds, bucketOrds.length + 1);
+                                bucketOrds[bucketOrds.length - 1] = bucket;
+                                childrenOrdToOtherBuckets.put(globalOrdinal, bucketOrds);
+                            } else {
+                                childrenOrdToOtherBuckets.put(globalOrdinal, new long[] { bucket });
+                            }
+                            multipleBucketsPerChildrenOrd = true;
                         }
                     }
                 }
@@ -141,6 +162,14 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
                     long bucketOrd = childrenOrdToBuckets.get(globalOrdinal);
                     if (bucketOrd != -1) {
                         collectBucket(sub, docId, bucketOrd);
+                        if (multipleBucketsPerChildrenOrd) {
+                            long[] otherBucketOrds = childrenOrdToOtherBuckets.get(globalOrdinal);
+                            if (otherBucketOrds != null) {
+                                for (long otherBucketOrd : otherBucketOrds) {
+                                    collectBucket(sub, docId, otherBucketOrd);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -149,6 +178,6 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
 
     @Override
     protected void doClose() {
-        Releasables.close(childrenOrdToBuckets);
+        Releasables.close(childrenOrdToBuckets, childrenOrdToOtherBuckets);
     }
 }
