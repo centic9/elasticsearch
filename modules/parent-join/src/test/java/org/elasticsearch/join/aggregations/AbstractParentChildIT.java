@@ -15,7 +15,7 @@ import org.junit.Before;
 
 public abstract class AbstractParentChildIT  extends ParentChildTestCase {
     protected static final Map<String, Control> categoryToControl = new HashMap<>();
-
+    protected static final Map<String, ParentControl> articleToControl = new HashMap<>();
 
     @Before
     public void setupCluster() throws Exception {
@@ -50,14 +50,14 @@ public abstract class AbstractParentChildIT  extends ParentChildTestCase {
             String[] categories = new String[randomIntBetween(1,1)];
             for (int j = 0; j < categories.length; j++) {
                 String category = categories[j] = uniqueCategories[catIndex++ % uniqueCategories.length];
-                ChildrenIT.Control control = categoryToControl.get(category);
-                if (control == null) {
-                    categoryToControl.put(category, control = new ChildrenIT.Control(category));
-                }
+                Control control = categoryToControl.computeIfAbsent(category, Control::new);
                 control.articleIds.add(id);
+                articleToControl.put(id, new ParentControl(category));
             }
 
-            requests.add(createIndexRequest("test", "article", id, null, "category", categories, "randomized", true));
+            IndexRequestBuilder indexRequest = createIndexRequest("test", "article", id, null, "category", categories, "randomized", true);
+            requests.add(indexRequest);
+            //System.out.println("IndexRequest: " + indexRequest.request());
         }
 
         String[] commenters = new String[randomIntBetween(5, 50)];
@@ -66,19 +66,21 @@ public abstract class AbstractParentChildIT  extends ParentChildTestCase {
         }
 
         int id = 0;
-        for (ChildrenIT.Control control : categoryToControl.values()) {
+        for (Control control : categoryToControl.values()) {
             for (String articleId : control.articleIds) {
                 int numChildDocsPerParent = randomIntBetween(0, 5);
                 for (int i = 0; i < numChildDocsPerParent; i++) {
                     String commenter = commenters[id % commenters.length];
                     String idValue = "comment-" + id++;
                     control.commentIds.add(idValue);
-                    Set<String> ids = control.commenterToCommentId.get(commenter);
-                    if (ids == null) {
-                        control.commenterToCommentId.put(commenter, ids = new HashSet<>());
-                    }
+                    Set<String> ids = control.commenterToCommentId.computeIfAbsent(commenter, k -> new HashSet<>());
                     ids.add(idValue);
-                    requests.add(createIndexRequest("test", "comment", idValue, articleId, "commenter", commenter, "randomized", true));
+
+                    articleToControl.get(articleId).commentIds.add(idValue);
+
+                    IndexRequestBuilder indexRequest = createIndexRequest("test", "comment", idValue, articleId, "commenter", commenter, "randomized", true);
+                    requests.add(indexRequest);
+                    //System.out.println("ChildIndexRequest: " + indexRequest.request());
                 }
             }
         }
@@ -103,6 +105,15 @@ public abstract class AbstractParentChildIT  extends ParentChildTestCase {
         final Map<String, Set<String>> commenterToCommentId = new HashMap<>();
 
         private Control(String category) {
+            this.category = category;
+        }
+    }
+
+    protected static final class ParentControl {
+        final String category;
+        final Set<String> commentIds = new HashSet<>();
+
+        private ParentControl(String category) {
             this.category = category;
         }
     }

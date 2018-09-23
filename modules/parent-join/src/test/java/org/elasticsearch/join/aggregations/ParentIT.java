@@ -1,8 +1,8 @@
 package org.elasticsearch.join.aggregations;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.HashMap;
@@ -20,7 +20,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-@Seed("[413C3738BB78F04:D058AD289F565736]")
+//@Seed("[413C3738BB78F04:D058AD289F565736]")
 public class ParentIT extends AbstractParentChildIT {
 
     public void testSimpleParentAgg() throws Exception {
@@ -34,22 +34,42 @@ public class ParentIT extends AbstractParentChildIT {
         SearchResponse searchResponse = searchRequest.get();
         assertSearchResponse(searchResponse);
 
-        /*final long comments = categoryToControl.values().stream().mapToLong(
-            value -> value.commentIds.size()).sum();*/
-        final long articles = categoryToControl.values().stream().mapToLong(
-            value -> value.articleIds.size()).sum();
+        long articlesWithComment = articleToControl.values().stream().filter(
+            parentControl -> !parentControl.commentIds.isEmpty()
+        ).count();
 
         Parent parentAgg = searchResponse.getAggregations().get("to_article");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
-            parentAgg.getDocCount(), equalTo(articles));
+            parentAgg.getDocCount(), equalTo(articlesWithComment));
         Terms categoryTerms = parentAgg.getAggregations().get("category");
-        assertThat(categoryTerms.getBuckets().size(),
-            equalTo(categoryToControl.keySet().size()));
-        for (String category : categoryToControl.keySet()) {
-            final Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(category);
-            assertThat(categoryBucket.getKeyAsString(), equalTo(category));
-            assertThat(categoryBucket.getDocCount(),
-                equalTo((long)categoryToControl.get(category).commentIds.size()));
+        long categoriesWithComments = categoryToControl.values().stream().filter(
+            control -> !control.commentIds.isEmpty()).count();
+        assertThat("Buckets: " + categoryTerms.getBuckets().stream().map(
+            (Function<Terms.Bucket, String>) MultiBucketsAggregation.Bucket::getKeyAsString).collect(Collectors.toList()) +
+                "\nCategories: " + categoryToControl.keySet(),
+            (long)categoryTerms.getBuckets().size(), equalTo(categoriesWithComments));
+        for (Map.Entry<String, Control> entry : categoryToControl.entrySet()) {
+            // no children for this category -> no entry in the child to parent-aggregation
+            if(entry.getValue().commentIds.isEmpty()) {
+                assertNull(categoryTerms.getBucketByKey(entry.getKey()));
+                continue;
+            }
+
+            final Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(entry.getKey());
+            assertNotNull("Failed for category " + entry.getKey(),
+                categoryBucket);
+            assertThat("Failed for category " + entry.getKey(),
+                categoryBucket.getKeyAsString(), equalTo(entry.getKey()));
+
+            // count all articles in this category which have at least one comment
+            long articlesForCategory = articleToControl.values().stream().
+                // only articles with this category
+                filter(parentControl -> parentControl.category.equals(entry.getKey())).
+                // only articles which have comments
+                filter(parentControl -> !parentControl.commentIds.isEmpty()).
+                count();
+            assertThat("Failed for category " + entry.getKey(),
+                categoryBucket.getDocCount(), equalTo(articlesForCategory));
         }
     }
 
