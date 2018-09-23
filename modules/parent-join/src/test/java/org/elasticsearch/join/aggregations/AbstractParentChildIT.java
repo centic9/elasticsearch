@@ -14,12 +14,11 @@ import org.elasticsearch.join.query.ParentChildTestCase;
 import org.junit.Before;
 
 public abstract class AbstractParentChildIT  extends ParentChildTestCase {
-    protected static final Map<String, Control> categoryToControl = new HashMap<>();
-    protected static final Map<String, ParentControl> articleToControl = new HashMap<>();
+    protected final Map<String, Control> categoryToControl = new HashMap<>();
+    protected final Map<String, ParentControl> articleToControl = new HashMap<>();
 
     @Before
     public void setupCluster() throws Exception {
-        categoryToControl.clear();
         if (legacy()) {
             assertAcked(
                 prepareCreate("test")
