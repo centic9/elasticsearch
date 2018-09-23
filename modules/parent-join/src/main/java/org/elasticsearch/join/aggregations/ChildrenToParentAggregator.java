@@ -19,7 +19,6 @@
 package org.elasticsearch.join.aggregations;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +35,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -127,7 +125,7 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
             final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
 
             final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
-            // Set the scorer, since we now replay only the child docIds
+            // Set the scorer, since we now replay only the parent docIds
             sub.setScorer(new ConstantScoreScorer(null, 1f, parentDocsIter));
 
             final Bits liveDocs = ctx.reader().getLiveDocs();

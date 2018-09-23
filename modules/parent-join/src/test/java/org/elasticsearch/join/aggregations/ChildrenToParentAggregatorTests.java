@@ -19,7 +19,6 @@
 
 package org.elasticsearch.join.aggregations;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -30,6 +29,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -64,7 +64,6 @@ import java.util.function.Consumer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@Seed("[C648091C3818B6A2:DF8969ED7EF614BD]")
 public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
     private static final String CHILD_TYPE = "child_type";
@@ -82,7 +81,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             assertEquals(0, childrenToParent.getDocCount());
             Aggregation parentAggregation = childrenToParent.getAggregations().get("in_parent");
             assertEquals(0, childrenToParent.getDocCount());
-            assertNotNull("Had: " + childrenToParent.getAggregations().asMap(), parentAggregation);
+            assertNotNull("Aggregations: " + childrenToParent.getAggregations().asMap(), parentAggregation);
             assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentAggregation).getValue(), Double.MIN_VALUE);
         });
         indexReader.close();
@@ -114,14 +113,24 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedMinValue, ((InternalMin) parent.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
         });
 
-        /*for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermQuery(new Term("join_field#" + PARENT_TYPE, parent)), indexSearcher, aggregation -> {
-                assertEquals("Having aggregation: " + aggregation,
+        /*System.out.println("All: " + indexSearcher.count(
+            new MatchAllDocsQuery()));
+        System.out.println("Children of parent0: " + indexSearcher.count(
+            new TermQuery(new Term("join_field#" + PARENT_TYPE, "parent0"))));
+        System.out.println("Parent0: " + indexSearcher.count(
+            new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(PARENT_TYPE, "parent0")))));
+        System.out.println("Child0: " + indexSearcher.count(
+            new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(CHILD_TYPE, "child0_parent0")))));*/
+
+        for (String parent : expectedParentChildRelations.keySet()) {
+            testCase(new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(CHILD_TYPE, "child0_" + parent))),
+                indexSearcher, aggregation -> {
+                assertEquals("Aggregation: " + aggregation,
                     1, aggregation.getDocCount());
                 assertEquals(expectedParentChildRelations.get(parent).v2(),
                         ((InternalMin) aggregation.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
             });
-        }*/
+        }
 
         indexReader.close();
         directory.close();
