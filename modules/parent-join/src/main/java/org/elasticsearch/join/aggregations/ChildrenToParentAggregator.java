@@ -20,8 +20,10 @@ package org.elasticsearch.join.aggregations;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -33,6 +35,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
@@ -149,6 +152,10 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
             // Set the scorer, since we now replay only the parent docIds
             sub.setScorer(new ConstantScoreScorer(null, 1f, parentDocsIter));
 
+            // TODO: this is unwanted allocation, just for initial verification
+            // of the implementation idea, needs to be done differently!
+            Set<Tuple<Integer,Long>> seen = new HashSet<>();
+
             final Bits liveDocs = ctx.reader().getLiveDocs();
             for (int docId = parentDocsIter
                     .nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = parentDocsIter
@@ -161,12 +168,18 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
                     assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
                     long bucketOrd = childrenOrdToBuckets.get(globalOrdinal);
                     if (bucketOrd != -1) {
-                        collectBucket(sub, docId, bucketOrd);
+                        // only collect each parentId once
+                        if(seen.add(Tuple.tuple(docId, bucketOrd))) {
+                            collectBucket(sub, docId, bucketOrd);
+                        }
                         if (multipleBucketsPerChildrenOrd) {
                             long[] otherBucketOrds = childrenOrdToOtherBuckets.get(globalOrdinal);
                             if (otherBucketOrds != null) {
                                 for (long otherBucketOrd : otherBucketOrds) {
-                                    collectBucket(sub, docId, otherBucketOrd);
+                                    // only collect each parentId once
+                                    if(seen.add(Tuple.tuple(docId, otherBucketOrd))) {
+                                        collectBucket(sub, docId, otherBucketOrd);
+                                    }
                                 }
                             }
                         }

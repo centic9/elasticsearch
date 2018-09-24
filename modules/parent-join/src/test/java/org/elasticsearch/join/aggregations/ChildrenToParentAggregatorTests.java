@@ -19,7 +19,6 @@
 
 package org.elasticsearch.join.aggregations;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -71,7 +70,7 @@ import java.util.function.Consumer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@Seed("[C648091C3818B6A2:DF8969ED7EF614BD]")
+//@Seed("[C648091C3818B6A2:DF8969ED7EF614BD]")
 public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
     private static final String CHILD_TYPE = "child_type";
@@ -112,7 +111,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             int expectedTotalParents = 0;
             int expectedMinValue = Integer.MAX_VALUE;
             for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {
-                expectedTotalParents+=expectedValues.v1();
+                expectedTotalParents++;
                 expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
             }
             assertEquals("Having " + parent.getDocCount() + " docs and aggregation results: " +
