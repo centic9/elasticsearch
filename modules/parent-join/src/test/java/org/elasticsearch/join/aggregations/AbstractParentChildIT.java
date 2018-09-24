@@ -13,10 +13,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.join.query.ParentChildTestCase;
 import org.junit.Before;
 
+/**
+ * Small base test-class which combines stuff used for Children and Parent aggregation tests
+ */
 public abstract class AbstractParentChildIT  extends ParentChildTestCase {
     protected final Map<String, Control> categoryToControl = new HashMap<>();
     protected final Map<String, ParentControl> articleToControl = new HashMap<>();
-    //protected final Map<String, Control> commenterToControl = new HashMap<>();
 
     @Before
     public void setupCluster() throws Exception {
@@ -57,7 +59,7 @@ public abstract class AbstractParentChildIT  extends ParentChildTestCase {
 
             IndexRequestBuilder indexRequest = createIndexRequest("test", "article", id, null, "category", categories, "randomized", true);
             requests.add(indexRequest);
-            System.out.println("IndexRequest: " + indexRequest.request());
+            //System.out.println("IndexRequest: " + indexRequest.request());
         }
 
         String[] commenters = new String[randomIntBetween(5, 50)];
@@ -80,7 +82,7 @@ public abstract class AbstractParentChildIT  extends ParentChildTestCase {
 
                     IndexRequestBuilder indexRequest = createIndexRequest("test", "comment", idValue, articleId, "commenter", commenter, "randomized", true);
                     requests.add(indexRequest);
-                    System.out.println("ChildIndexRequest: " + indexRequest.request());
+                    //System.out.println("ChildIndexRequest: " + indexRequest.request());
                 }
             }
         }

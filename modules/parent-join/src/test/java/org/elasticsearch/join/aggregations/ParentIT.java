@@ -20,7 +20,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-//@Seed("[413C3738BB78F04:D058AD289F565736]")
 public class ParentIT extends AbstractParentChildIT {
 
     public void testSimpleParentAgg() throws Exception {
@@ -101,6 +100,8 @@ public class ParentIT extends AbstractParentChildIT {
 
             Parent childrenBucket = categoryBucket.getAggregations().get("to_article");
             assertThat(childrenBucket.getName(), equalTo("to_article"));
+
+            // TODO: verify some more
             /*assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
             assertThat(((InternalAggregation)childrenBucket).getProperty("_count"),
                 equalTo((long) entry1.getValue().commentIds.size()));

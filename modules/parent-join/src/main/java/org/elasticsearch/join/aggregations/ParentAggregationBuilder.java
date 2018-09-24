@@ -141,7 +141,7 @@ public class ParentAggregationBuilder
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(ParentToChildrenAggregator.TYPE_FIELD.getPreferredName(), childType);
+        builder.field(ChildrenToParentAggregator.TYPE_FIELD.getPreferredName(), childType);
         return builder;
     }
 

@@ -50,8 +50,11 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
-// The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
-// aggregation, for this reason that collector can't be used
+/**
+ * A {@link BucketsAggregator} which resolves to the matching parent documents.
+ *
+ * It ensures that each parent only matches once per bucket.
+ */
 public class ChildrenToParentAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField TYPE_FIELD = new ParseField("type");
@@ -153,8 +156,9 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
             sub.setScorer(new ConstantScoreScorer(null, 1f, parentDocsIter));
 
             // TODO: this is unwanted allocation, just for initial verification
-            // of the implementation idea, needs to be done differently!
-            Set<Tuple<Integer,Long>> seen = new HashSet<>();
+            // of the implementation idea, probably needs to be done differently
+            // for production use so we do not cause memory churn here
+            Set<Tuple<Integer,Long>> seenParents = new HashSet<>();
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
             for (int docId = parentDocsIter
@@ -168,16 +172,16 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
                     assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
                     long bucketOrd = childrenOrdToBuckets.get(globalOrdinal);
                     if (bucketOrd != -1) {
-                        // only collect each parentId once
-                        if(seen.add(Tuple.tuple(docId, bucketOrd))) {
+                        // only collect each parentId once per bucket
+                        if(seenParents.add(Tuple.tuple(docId, bucketOrd))) {
                             collectBucket(sub, docId, bucketOrd);
                         }
                         if (multipleBucketsPerChildrenOrd) {
                             long[] otherBucketOrds = childrenOrdToOtherBuckets.get(globalOrdinal);
                             if (otherBucketOrds != null) {
                                 for (long otherBucketOrd : otherBucketOrds) {
-                                    // only collect each parentId once
-                                    if(seen.add(Tuple.tuple(docId, otherBucketOrd))) {
+                                    // only collect each parentId once per bucket
+                                    if(seenParents.add(Tuple.tuple(docId, otherBucketOrd))) {
                                         collectBucket(sub, docId, otherBucketOrd);
                                     }
                                 }

@@ -70,7 +70,6 @@ import java.util.function.Consumer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-//@Seed("[C648091C3818B6A2:DF8969ED7EF614BD]")
 public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
     private static final String CHILD_TYPE = "child_type";
@@ -107,6 +106,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
+        // verify with all documents
         testCase(new MatchAllDocsQuery(), indexSearcher, parent -> {
             int expectedTotalParents = 0;
             int expectedMinValue = Integer.MAX_VALUE;
@@ -120,6 +120,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedMinValue, ((InternalMin) parent.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
         });
 
+        // verify for each children
         for (String parent : expectedParentChildRelations.keySet()) {
             testCase(new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(CHILD_TYPE, "child0_" + parent))),
                 indexSearcher, aggregation -> {
@@ -153,6 +154,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
+        // verify a terms-aggregation inside the parent-aggregation
         testCaseTerms(new MatchAllDocsQuery(), indexSearcher, parent -> {
             assertNotNull(parent);
             LongTerms valueTerms = parent.getAggregations().get("value_terms");
@@ -194,6 +196,8 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
+        // verify a terms-aggregation inside the parent-aggregation which itself is inside a
+        // terms-aggregation on the child-documents
         testCaseTermsParentTerms(new MatchAllDocsQuery(), indexSearcher, longTerms -> {
             assertNotNull(longTerms);
 
@@ -213,15 +217,15 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numParents; i++) {
             String parent = "parent" + i;
             int randomValue = randomIntBetween(0, 100);
-            System.out.println("Parent: " + parent + ": " + iw.addDocument(createParentDocument(parent, randomValue)) +
-                ", val: " + randomValue);
+            /*long parentDocId =*/ iw.addDocument(createParentDocument(parent, randomValue));
+            //System.out.println("Parent: " + parent + ": " + parentDocId + ", val: " + randomValue);
             int numChildren = randomIntBetween(1, 10);
             int minValue = Integer.MAX_VALUE;
             for (int c = 0; c < numChildren; c++) {
                 minValue = Math.min(minValue, randomValue);
                 int randomSubValue = randomIntBetween(0, 100);
-                System.out.println("Child " + c + ": " + iw.addDocument(createChildDocument("child" + c + "_" + parent, parent, randomSubValue)) +
-                    ", val: " + randomSubValue);
+                /*long childrenDocId =*/ iw.addDocument(createChildDocument("child" + c + "_" + parent, parent, randomSubValue));
+                //System.out.println("Child " + c + ": " + childrenDocId + ", val: " + randomSubValue);
             }
             expectedValues.put(parent, new Tuple<>(numChildren, minValue));
         }
