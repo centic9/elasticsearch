@@ -51,6 +51,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -164,7 +165,9 @@ public class PluginsServiceTests extends ESTestCase {
             if (Constants.WINDOWS) {
                 assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
             } else {
-                assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+                assertThat(e.getCause(), hasToString(anyOf(
+                    containsString("Not a directory"),
+                    containsString("Ist kein Verzeichnis"))));
             }
         }
     }
