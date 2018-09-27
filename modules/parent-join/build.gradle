@@ -22,3 +22,7 @@ esplugin {
   classname 'org.elasticsearch.join.ParentJoinPlugin'
   hasClientJar = true
 }
+
+dependencies {
+  compile 'com.carrotsearch:hppc:0.7.1'
+}

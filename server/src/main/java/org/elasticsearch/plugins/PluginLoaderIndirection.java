@@ -28,6 +28,7 @@ import java.util.List;
 class PluginLoaderIndirection {
 
     static ClassLoader createLoader(ClassLoader parent, List<ClassLoader> extendedLoaders) {
-        return ExtendedPluginsClassLoader.create(parent, extendedLoaders);
+        //return ExtendedPluginsClassLoader.create(parent, extendedLoaders);
+        return null;
     }
 }

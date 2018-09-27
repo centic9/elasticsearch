@@ -19,6 +19,7 @@
 
 package org.elasticsearch.join.aggregations;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -56,6 +57,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,6 +72,7 @@ import java.util.function.Consumer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@Seed("[C1B07AB49F611CCF:0]")
 public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
     private static final String CHILD_TYPE = "child_type";
@@ -177,7 +180,6 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-
     public void testTermsParentChildTerms() throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -206,6 +208,15 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             assertNotNull(valueTerms);*/
         });
 
+        for(int j = 0;j < 20;j++) {
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 100; i++) {
+                testCaseTermsParentTerms(new MatchAllDocsQuery(), indexSearcher, Assert::assertNotNull);
+            }
+
+            System.out.println("Duration: " + (System.currentTimeMillis() - start));
+        }
+
         indexReader.close();
         directory.close();
     }
@@ -214,20 +225,20 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
     private static Map<String, Tuple<Integer, Integer>> setupIndex(RandomIndexWriter iw) throws IOException {
         Map<String, Tuple<Integer, Integer>> expectedValues = new HashMap<>();
         int numParents = randomIntBetween(1, 10);
-        for (int i = 0; i < numParents; i++) {
+        for (int i = 0; i < 500; i++) {
             String parent = "parent" + i;
             int randomValue = randomIntBetween(0, 100);
             /*long parentDocId =*/ iw.addDocument(createParentDocument(parent, randomValue));
             //System.out.println("Parent: " + parent + ": " + parentDocId + ", val: " + randomValue);
             int numChildren = randomIntBetween(1, 10);
             int minValue = Integer.MAX_VALUE;
-            for (int c = 0; c < numChildren; c++) {
+            for (int c = 0; c < 80; c++) {
                 minValue = Math.min(minValue, randomValue);
                 int randomSubValue = randomIntBetween(0, 100);
                 /*long childrenDocId =*/ iw.addDocument(createChildDocument("child" + c + "_" + parent, parent, randomSubValue));
                 //System.out.println("Child " + c + ": " + childrenDocId + ", val: " + randomSubValue);
             }
-            expectedValues.put(parent, new Tuple<>(numChildren, minValue));
+            expectedValues.put(parent, new Tuple<>(1000, minValue));
         }
         return expectedValues;
     }

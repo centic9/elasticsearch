@@ -18,13 +18,8 @@
  */
 package org.elasticsearch.join.aggregations;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import com.carrotsearch.hppc.LongSet;
+import com.carrotsearch.hppc.LongScatterSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -35,7 +30,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
@@ -49,6 +43,12 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A {@link BucketsAggregator} which resolves to the matching parent documents.
@@ -158,7 +158,8 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
             // TODO: this is unwanted allocation, just for initial verification
             // of the implementation idea, probably needs to be done differently
             // for production use so we do not cause memory churn here
-            Set<Tuple<Integer,Long>> seenParents = new HashSet<>();
+            //Set<Tuple<Integer,Long>> seenParents = new HashSet<>();
+            Map<Integer, LongSet> seenParents = new HashMap<>();
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
             for (int docId = parentDocsIter
@@ -172,24 +173,27 @@ public class ChildrenToParentAggregator extends BucketsAggregator implements Sin
                     assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
                     long bucketOrd = childrenOrdToBuckets.get(globalOrdinal);
                     if (bucketOrd != -1) {
-                        // only collect each parentId once per bucket
-                        if(seenParents.add(Tuple.tuple(docId, bucketOrd))) {
-                            collectBucket(sub, docId, bucketOrd);
-                        }
+                        collectBucketIfUnique(sub, seenParents, docId, bucketOrd);
                         if (multipleBucketsPerChildrenOrd) {
                             long[] otherBucketOrds = childrenOrdToOtherBuckets.get(globalOrdinal);
                             if (otherBucketOrds != null) {
                                 for (long otherBucketOrd : otherBucketOrds) {
                                     // only collect each parentId once per bucket
-                                    if(seenParents.add(Tuple.tuple(docId, otherBucketOrd))) {
-                                        collectBucket(sub, docId, otherBucketOrd);
-                                    }
+                                    collectBucketIfUnique(sub, seenParents, docId, otherBucketOrd);
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    private void collectBucketIfUnique(LeafBucketCollector sub, Map<Integer, LongSet> seenParents, int docId, long bucketOrd) throws IOException {
+        // only collect each parentId once per bucket
+        LongSet seenBucketOrds = seenParents.computeIfAbsent(docId, integer -> new LongScatterSet());
+        if (seenBucketOrds.add(bucketOrd)) {
+            collectBucket(sub, docId, bucketOrd);
         }
     }
 
